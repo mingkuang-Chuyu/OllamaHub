@@ -38,7 +38,7 @@ public sealed class AnthropicMessagesRequest
     public JsonNode? ToolChoice { get; init; }
 
     [JsonExtensionData]
-    public Dictionary<string, object?> Extra { get; init; } = new(StringComparer.OrdinalIgnoreCase);
+    public Dictionary<string, object?> Extra { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 }
 
 public sealed class AnthropicToolDefinition

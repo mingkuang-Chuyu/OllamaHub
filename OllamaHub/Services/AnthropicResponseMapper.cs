@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using OllamaHub.Configuration;
 using OllamaHub.Contracts;
+using OllamaHub.Serialization;
 
 namespace OllamaHub.Services;
 
@@ -18,8 +19,6 @@ public interface IAnthropicResponseMapper
 
 public sealed class AnthropicResponseMapper : IAnthropicResponseMapper
 {
-    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
-
     public OllamaChatChunkResponse MapMessageResponse(ResolvedModelConfig model, AnthropicMessagesResponse response)
     {
         var text = string.Concat(response.Content?
@@ -366,7 +365,7 @@ public sealed class AnthropicResponseMapper : IAnthropicResponseMapper
 
     private static async Task WriteChunkAsync(StreamWriter writer, OllamaChatChunkResponse chunk, CancellationToken cancellationToken)
     {
-        await writer.WriteLineAsync(JsonSerializer.Serialize(chunk, JsonOptions).AsMemory(), cancellationToken);
+        await writer.WriteLineAsync(JsonSerializer.Serialize(chunk, AppJsonContext.Default.OllamaChatChunkResponse).AsMemory(), cancellationToken);
         await writer.FlushAsync(cancellationToken);
     }
 
@@ -478,7 +477,7 @@ public sealed class AnthropicResponseMapper : IAnthropicResponseMapper
 
     private static async Task WriteOpenAiSseAsync(StreamWriter writer, OpenAIChatCompletionChunk chunk, CancellationToken cancellationToken)
     {
-        await writer.WriteAsync($"data: {JsonSerializer.Serialize(chunk, JsonOptions)}\n\n".AsMemory(), cancellationToken);
+        await writer.WriteAsync($"data: {JsonSerializer.Serialize(chunk, AppJsonContext.Default.OpenAIChatCompletionChunk)}\n\n".AsMemory(), cancellationToken);
         await writer.FlushAsync(cancellationToken);
     }
 }

@@ -9,6 +9,27 @@ public sealed class OllamaTagListResponse
     public required IReadOnlyList<OllamaModelDescriptor> Models { get; init; }
 }
 
+public sealed class RootStatusResponse
+{
+    [JsonPropertyName("name")]
+    public required string Name { get; init; }
+
+    [JsonPropertyName("status")]
+    public required string Status { get; init; }
+}
+
+public sealed class VersionResponse
+{
+    [JsonPropertyName("version")]
+    public required string Version { get; init; }
+}
+
+public sealed class OllamaProcessListResponse
+{
+    [JsonPropertyName("models")]
+    public required IReadOnlyList<OllamaModelDescriptor> Models { get; init; }
+}
+
 public sealed class OllamaModelDescriptor
 {
     [JsonPropertyName("name")]
@@ -78,7 +99,7 @@ public sealed class OllamaShowResponse
     public IReadOnlyList<string> Capabilities { get; init; } = [];
 
     [JsonPropertyName("model_info")]
-    public required IReadOnlyDictionary<string, object> ModelInfo { get; init; }
+    public required IReadOnlyDictionary<string, JsonNode?> ModelInfo { get; init; }
 }
 
 public sealed class OllamaChatRequest

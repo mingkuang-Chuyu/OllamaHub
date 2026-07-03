@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using OllamaHub.Configuration;
 using OllamaHub.Contracts;
+using OllamaHub.Serialization;
 
 namespace OllamaHub.Services;
 
@@ -53,7 +54,7 @@ public sealed class AnthropicRequestFactory : IAnthropicRequestFactory
 
     public AnthropicMessagesRequest Create(ResolvedModelConfig model, OpenAIChatCompletionsRequest request)
     {
-        var requestJson = JsonSerializer.SerializeToNode(request)?.AsObject() ?? new JsonObject();
+        var requestJson = JsonSerializer.SerializeToNode(request, AppJsonContext.Default.OpenAIChatCompletionsRequest)?.AsObject() ?? new JsonObject();
         return Create(model, requestJson);
     }
 

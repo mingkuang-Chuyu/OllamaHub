@@ -6,6 +6,7 @@ using OllamaHub.Configuration;
 using OllamaHub.Contracts;
 using OllamaHub.Interop;
 using OllamaHub.Logging;
+using OllamaHub.Serialization;
 using OllamaHub.Services;
 
 var configPath = Path.Combine(AppContext.BaseDirectory, OllamaHubConfigLoader.DefaultConfigFileName);
@@ -55,6 +56,7 @@ if (appConfig.Server.Urls.Count > 0)
 
 builder.Services.ConfigureHttpJsonOptions(options =>
 {
+    options.SerializerOptions.TypeInfoResolver = AppJsonContext.Default;
     options.SerializerOptions.PropertyNamingPolicy = null;
 });
 
@@ -66,9 +68,19 @@ builder.Services.AddHttpClient<IProtocolPassthroughClient, ProtocolPassthroughCl
 
 var app = builder.Build();
 
-app.MapGet("/", () => Results.Ok(new { name = "OllamaHub", status = "ok" }));
-app.MapGet("/api/version", () => Results.Ok(new { version = "0.12.6" }));
-app.MapGet("/api/ps", () => Results.Ok(new { models = Array.Empty<object>() }));
+app.MapGet("/", () => Results.Json(new RootStatusResponse
+{
+    Name = "OllamaHub",
+    Status = "ok"
+}, AppJsonContext.Default.RootStatusResponse));
+app.MapGet("/api/version", () => Results.Json(new VersionResponse
+{
+    Version = "0.12.6"
+}, AppJsonContext.Default.VersionResponse));
+app.MapGet("/api/ps", () => Results.Json(new OllamaProcessListResponse
+{
+    Models = []
+}, AppJsonContext.Default.OllamaProcessListResponse));
 
 app.MapGet("/api/tags", (IOllamaHubConfigProvider configProvider) =>
     Results.Ok(new OllamaTagListResponse
@@ -106,14 +118,14 @@ app.MapPost("/api/show", (IOllamaHubConfigProvider configProvider, OllamaShowReq
         Parameters = $"family={model.Family}\ncontext_length={model.ContextLength}\nmax_tokens={model.MaxTokens}",
         Details = ToDescriptor(model).Details,
         Capabilities = capabilities,
-        ModelInfo = new Dictionary<string, object>
+        ModelInfo = new Dictionary<string, JsonNode?>
         {
-            ["provider"] = model.ProviderId,
-            ["anthropic_model"] = model.AnthropicModel,
-            ["context_length"] = model.ContextLength,
-            ["max_tokens"] = model.MaxTokens,
-            ["capabilities"] = capabilities,
-            ["vision"] = model.Vision,
+            ["provider"] = JsonValue.Create(model.ProviderId),
+            ["anthropic_model"] = JsonValue.Create(model.AnthropicModel),
+            ["context_length"] = JsonValue.Create(model.ContextLength),
+            ["max_tokens"] = JsonValue.Create(model.MaxTokens),
+            ["capabilities"] = new JsonArray(capabilities.Select(capability => JsonValue.Create(capability)!).ToArray()),
+            ["vision"] = JsonValue.Create(model.Vision),
         }
     });
 });
@@ -179,11 +191,11 @@ static IResult ToError(HttpStatusCode statusCode, string? error)
     return (int)statusCode switch
     {
         StatusCodes.Status400BadRequest => Results.BadRequest(payload),
-        StatusCodes.Status401Unauthorized => Results.Json(payload, statusCode: StatusCodes.Status401Unauthorized),
-        StatusCodes.Status403Forbidden => Results.Json(payload, statusCode: StatusCodes.Status403Forbidden),
+        StatusCodes.Status401Unauthorized => Results.Json(payload, AppJsonContext.Default.OllamaErrorResponse, statusCode: StatusCodes.Status401Unauthorized),
+        StatusCodes.Status403Forbidden => Results.Json(payload, AppJsonContext.Default.OllamaErrorResponse, statusCode: StatusCodes.Status403Forbidden),
         StatusCodes.Status404NotFound => Results.NotFound(payload),
-        StatusCodes.Status429TooManyRequests => Results.Json(payload, statusCode: StatusCodes.Status429TooManyRequests),
-        _ => Results.Json(payload, statusCode: StatusCodes.Status502BadGateway)
+        StatusCodes.Status429TooManyRequests => Results.Json(payload, AppJsonContext.Default.OllamaErrorResponse, statusCode: StatusCodes.Status429TooManyRequests),
+        _ => Results.Json(payload, AppJsonContext.Default.OllamaErrorResponse, statusCode: StatusCodes.Status502BadGateway)
     };
 }
 
@@ -329,7 +341,7 @@ async Task<IResult> HandleChatCompletionsAsync(
             }
         }
 
-        await passthroughClient.ProxyAsync(httpContext, model, "openai", "/v1/chat/completions", requestObject, cancellationToken);
+        await passthroughClient.ProxyAsync(httpContext, model, "openai", "/v1/chat/completions", requestObject, AppJsonContext.Default.JsonObject, cancellationToken);
         return Results.Empty;
     }
 

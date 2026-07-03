@@ -4,6 +4,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Encodings.Web;
+using OllamaHub.Serialization;
 
 namespace OllamaHub.Configuration;
 
@@ -164,15 +165,6 @@ public sealed class OllamaHubConfigLoader : IOllamaHubConfigProvider
 {
     public const string DefaultConfigFileName = "settings.json";
 
-    private static readonly JsonSerializerOptions SerializerOptions = new()
-    {
-        PropertyNameCaseInsensitive = true,
-        ReadCommentHandling = JsonCommentHandling.Skip,
-        AllowTrailingCommas = true,
-        WriteIndented = true,
-        Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
-    };
-
     private readonly IReadOnlyList<ResolvedModelConfig> _models;
     private readonly ResolvedAppConfig _config;
 
@@ -202,7 +194,7 @@ public sealed class OllamaHubConfigLoader : IOllamaHubConfigProvider
     internal static OllamaHubConfig LoadRawConfig(string configPath)
     {
         using var stream = File.OpenRead(configPath);
-        var config = JsonSerializer.Deserialize<OllamaHubConfig>(stream, SerializerOptions);
+        var config = JsonSerializer.Deserialize(stream, AppJsonContext.Default.OllamaHubConfig);
         return config ?? new OllamaHubConfig();
     }
 
@@ -227,13 +219,13 @@ public sealed class OllamaHubConfigLoader : IOllamaHubConfigProvider
 
         if (TrySetProtectedApiKey(root["providers"] as JsonArray, "id", target, protectedApiKey))
         {
-            File.WriteAllText(configPath, root.ToJsonString(SerializerOptions), Encoding.UTF8);
+            WriteConfigFile(configPath, root);
             return;
         }
 
         if (TrySetProtectedApiKey(root["models"] as JsonArray, "id", target, protectedApiKey))
         {
-            File.WriteAllText(configPath, root.ToJsonString(SerializerOptions), Encoding.UTF8);
+            WriteConfigFile(configPath, root);
             return;
         }
 
@@ -266,6 +258,18 @@ public sealed class OllamaHubConfigLoader : IOllamaHubConfigProvider
 
         return models.FirstOrDefault(model =>
             string.Equals(model.ModelId, normalizedModelName, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static void WriteConfigFile(string configPath, JsonObject root)
+    {
+        using var stream = File.Create(configPath);
+        using var writer = new Utf8JsonWriter(stream, new JsonWriterOptions
+        {
+            Indented = true,
+            Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
+        });
+
+        root.WriteTo(writer);
     }
 
     private static bool TrySetProtectedApiKey(JsonArray? items, string idPropertyName, string target, string protectedApiKey)
@@ -304,7 +308,7 @@ public sealed class OllamaHubConfigLoader : IOllamaHubConfigProvider
         }
 
         using var stream = File.OpenRead(configPath);
-        var config = JsonSerializer.Deserialize<OllamaHubConfig>(stream, SerializerOptions);
+        var config = JsonSerializer.Deserialize(stream, AppJsonContext.Default.OllamaHubConfig);
 
         if (config is null)
         {
@@ -317,10 +321,10 @@ public sealed class OllamaHubConfigLoader : IOllamaHubConfigProvider
             Urls = ResolveServerUrls(config)
         };
 
-        var providers = config.Providers.ToDictionary(provider => provider.Id, StringComparer.OrdinalIgnoreCase);
+        var providers = (config.Providers ?? []).ToDictionary(provider => provider.Id, StringComparer.OrdinalIgnoreCase);
         var models = new List<ResolvedModelConfig>();
 
-        foreach (var model in config.Models)
+        foreach (var model in config.Models ?? [])
         {
             var providerId = GetProviderId(model);
             providers.TryGetValue(providerId, out var provider);
@@ -344,13 +348,13 @@ public sealed class OllamaHubConfigLoader : IOllamaHubConfigProvider
             var headers = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             if (provider is not null)
             {
-                foreach (var pair in provider.Headers)
+                foreach (var pair in provider.Headers ?? new Dictionary<string, string>())
                 {
                     headers[pair.Key] = pair.Value;
                 }
             }
 
-            foreach (var pair in model.Headers)
+            foreach (var pair in model.Headers ?? new Dictionary<string, string>())
             {
                 headers[pair.Key] = pair.Value;
             }
@@ -372,7 +376,7 @@ public sealed class OllamaHubConfigLoader : IOllamaHubConfigProvider
                 Temperature = model.Temperature,
                 TopP = model.TopP,
                 Headers = headers,
-                Extra = new Dictionary<string, JsonNode?>(model.Extra, StringComparer.OrdinalIgnoreCase)
+                Extra = new Dictionary<string, JsonNode?>(model.Extra ?? new Dictionary<string, JsonNode?>(), StringComparer.OrdinalIgnoreCase)
             });
         }
 

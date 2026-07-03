@@ -4,6 +4,7 @@ using System.Text;
 using System.Text.Json;
 using OllamaHub.Configuration;
 using OllamaHub.Contracts;
+using OllamaHub.Serialization;
 
 namespace OllamaHub.Services;
 
@@ -16,8 +17,6 @@ public interface IAnthropicProxyClient
 
 public sealed class AnthropicProxyClient(HttpClient httpClient, ILogger<AnthropicProxyClient> logger) : IAnthropicProxyClient
 {
-    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
-
     public async Task<(HttpStatusCode StatusCode, AnthropicMessagesResponse? Response, string? Error)> SendAsync(ResolvedModelConfig model, AnthropicMessagesRequest request, CancellationToken cancellationToken)
     {
         using var message = BuildRequestMessage(model, request);
@@ -44,7 +43,7 @@ public sealed class AnthropicProxyClient(HttpClient httpClient, ILogger<Anthropi
             response.Content.Headers.ContentType?.ToString() ?? "application/json",
             body);
 
-        var result = JsonSerializer.Deserialize<AnthropicMessagesResponse>(body, JsonOptions);
+        var result = JsonSerializer.Deserialize(body, AppJsonContext.Default.AnthropicMessagesResponse);
         if (result is null)
         {
             return (HttpStatusCode.BadGateway, null, "Anthropic 返回了空响应。");
@@ -87,7 +86,7 @@ public sealed class AnthropicProxyClient(HttpClient httpClient, ILogger<Anthropi
         message.Headers.Add("x-api-key", model.ApiKey);
         message.Headers.Add("anthropic-version", "2023-06-01");
 
-        var payload = JsonSerializer.Serialize(request, JsonOptions);
+        var payload = JsonSerializer.Serialize(request, AppJsonContext.Default.AnthropicMessagesRequest);
         message.Content = new StringContent(payload, Encoding.UTF8, "application/json");
 
         foreach (var header in model.Headers)
@@ -105,7 +104,7 @@ public sealed class AnthropicProxyClient(HttpClient httpClient, ILogger<Anthropi
     {
         try
         {
-            var error = JsonSerializer.Deserialize<AnthropicErrorEnvelope>(body, JsonOptions);
+            var error = JsonSerializer.Deserialize(body, AppJsonContext.Default.AnthropicErrorEnvelope);
             return error?.Error?.Message ?? $"Anthropic 请求失败，状态码 {(int)statusCode}。";
         }
         catch

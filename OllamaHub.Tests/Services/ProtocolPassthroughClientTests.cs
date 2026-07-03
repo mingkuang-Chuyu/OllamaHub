@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging.Abstractions;
 using OllamaHub.Configuration;
 using OllamaHub.Contracts;
+using OllamaHub.Serialization;
 using OllamaHub.Services;
 using Xunit;
 
@@ -51,7 +52,7 @@ public sealed class ProtocolPassthroughClientTests
             Stream = false
         };
 
-        await client.ProxyAsync(httpContext, model, "openai", "/v1/chat/completions", payload, CancellationToken.None);
+        await client.ProxyAsync(httpContext, model, "openai", "/v1/chat/completions", payload, AppJsonContext.Default.OpenAIChatCompletionsRequest, CancellationToken.None);
 
         Assert.NotNull(handler.RequestBody);
         using var json = JsonDocument.Parse(handler.RequestBody!);
@@ -99,7 +100,7 @@ public sealed class ProtocolPassthroughClientTests
 
         payload["model"] = model.ModelId;
 
-        await client.ProxyAsync(httpContext, model, "openai", "/v1/chat/completions", payload, CancellationToken.None);
+        await client.ProxyAsync(httpContext, model, "openai", "/v1/chat/completions", payload, AppJsonContext.Default.JsonObject, CancellationToken.None);
 
         Assert.NotNull(handler.RequestBody);
         using var json = JsonDocument.Parse(handler.RequestBody!);
@@ -155,7 +156,7 @@ public sealed class ProtocolPassthroughClientTests
             }
         };
 
-        await client.ProxyAsync(httpContext, model, "openai", "/v1/chat/completions", payload, CancellationToken.None);
+        await client.ProxyAsync(httpContext, model, "openai", "/v1/chat/completions", payload, AppJsonContext.Default.JsonObject, CancellationToken.None);
 
         Assert.NotNull(handler.RequestBody);
         using var json = JsonDocument.Parse(handler.RequestBody!);
@@ -200,7 +201,7 @@ public sealed class ProtocolPassthroughClientTests
             Stream = false
         };
 
-        await client.ProxyAsync(httpContext, model, "ollama", "/api/chat", payload, CancellationToken.None);
+        await client.ProxyAsync(httpContext, model, "ollama", "/api/chat", payload, AppJsonContext.Default.OllamaChatRequest, CancellationToken.None);
 
         Assert.NotNull(handler.RequestBody);
         using var json = JsonDocument.Parse(handler.RequestBody!);

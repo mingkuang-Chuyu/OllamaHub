@@ -4,7 +4,7 @@
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <OutputType Condition="$([MSBuild]::IsOSPlatform('Windows'))">WinExe</OutputType>
+    <PublishAot>true</PublishAot>
   </PropertyGroup>
 
 </Project>

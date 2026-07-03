@@ -1,22 +1,21 @@
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization.Metadata;
 using OllamaHub.Configuration;
 
 namespace OllamaHub.Services;
 
 public interface IProtocolPassthroughClient
 {
-    Task ProxyAsync<TRequest>(HttpContext httpContext, ResolvedModelConfig model, string apiMode, string upstreamPath, TRequest payload, CancellationToken cancellationToken);
+    Task ProxyAsync<TRequest>(HttpContext httpContext, ResolvedModelConfig model, string apiMode, string upstreamPath, TRequest payload, JsonTypeInfo<TRequest> jsonTypeInfo, CancellationToken cancellationToken);
 }
 
 public sealed class ProtocolPassthroughClient(HttpClient httpClient, ILogger<ProtocolPassthroughClient> logger) : IProtocolPassthroughClient
 {
-    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
-
-    public async Task ProxyAsync<TRequest>(HttpContext httpContext, ResolvedModelConfig model, string apiMode, string upstreamPath, TRequest payload, CancellationToken cancellationToken)
+    public async Task ProxyAsync<TRequest>(HttpContext httpContext, ResolvedModelConfig model, string apiMode, string upstreamPath, TRequest payload, JsonTypeInfo<TRequest> jsonTypeInfo, CancellationToken cancellationToken)
     {
-        using var upstreamRequest = BuildRequestMessage(httpContext, model, apiMode, upstreamPath, payload);
+        using var upstreamRequest = BuildRequestMessage(httpContext, model, apiMode, upstreamPath, payload, jsonTypeInfo);
         var requestBody = await GetRequestBodyAsync(upstreamRequest, cancellationToken);
         using var upstreamResponse = await httpClient.SendAsync(upstreamRequest, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
 
@@ -93,14 +92,14 @@ public sealed class ProtocolPassthroughClient(HttpClient httpClient, ILogger<Pro
         }
     }
 
-    private static HttpRequestMessage BuildRequestMessage<TRequest>(HttpContext httpContext, ResolvedModelConfig model, string apiMode, string upstreamPath, TRequest payload)
+    private static HttpRequestMessage BuildRequestMessage<TRequest>(HttpContext httpContext, ResolvedModelConfig model, string apiMode, string upstreamPath, TRequest payload, JsonTypeInfo<TRequest> jsonTypeInfo)
     {
         var upstreamUri = $"{model.BaseUrl.TrimEnd('/')}{upstreamPath}{httpContext.Request.QueryString}";
         var upstreamRequest = new HttpRequestMessage(new HttpMethod(httpContext.Request.Method), upstreamUri);
 
         if (payload is not null)
         {
-            var requestBody = JsonSerializer.Serialize(payload, JsonOptions);
+            var requestBody = JsonSerializer.Serialize(payload, jsonTypeInfo);
             upstreamRequest.Content = new StringContent(requestBody, Encoding.UTF8, httpContext.Request.ContentType ?? "application/json");
         }
 

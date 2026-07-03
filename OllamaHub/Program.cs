@@ -131,7 +131,6 @@ app.MapPost("/api/show", (IOllamaHubConfigProvider configProvider, OllamaShowReq
 });
 
 
-app.MapPost("/api/chat", HandleApiChatAsync);
 app.MapPost("/v1/chat/completions", HandleChatCompletionsAsync);
 app.MapPost("/openai/v1/chat/completions", HandleChatCompletionsAsync);
 
@@ -371,74 +370,5 @@ async Task<IResult> HandleChatCompletionsAsync(
 
     await using var anthropicStream = streamResult.Stream;
     await responseMapper.WriteOpenAiStreamAsync(model, anthropicStream, httpContext.Response.Body, cancellationToken);
-    return Results.Empty;
-}
-
-async Task<IResult> HandleApiChatAsync(
-    HttpContext httpContext,
-    IOllamaHubConfigProvider configProvider,
-    IAnthropicRequestFactory requestFactory,
-    IAnthropicProxyClient proxyClient,
-    IAnthropicResponseMapper responseMapper,
-    IProtocolPassthroughClient passthroughClient,
-    OllamaChatRequest request,
-    CancellationToken cancellationToken)
-{
-    var modelName = request.Model;
-    if (string.IsNullOrWhiteSpace(modelName))
-    {
-        return Results.BadRequest(new OllamaErrorResponse
-        {
-            Error = "Model name is required."
-        });
-    }
-
-    var model = configProvider.FindModel(modelName);
-    if (model is null)
-    {
-        return Results.NotFound(new OllamaErrorResponse
-        {
-            Error = $"Model '{modelName}' is not configured."
-        });
-    }
-
-    if (model.SupportsApiMode("ollama"))
-    {
-        var upstreamRequest = new OllamaChatRequest
-        {
-            Model = model.ModelId,
-            Messages = request.Messages,
-            Stream = request.Stream,
-            Options = request.Options
-        };
-
-        await passthroughClient.ProxyAsync(httpContext, model, "ollama", "/api/chat", upstreamRequest, AppJsonContext.Default.OllamaChatRequest, cancellationToken);
-        return Results.Empty;
-    }
-
-    var anthropicRequest = requestFactory.Create(model, request);
-
-    if (!request.Stream)
-    {
-        var (statusCode, response, error) = await proxyClient.SendAsync(model, anthropicRequest, cancellationToken);
-        if (response is null)
-        {
-            return ToError(statusCode, error);
-        }
-
-        return Results.Ok(responseMapper.MapMessageResponse(model, response));
-    }
-
-    var streamResult = await proxyClient.SendStreamAsync(model, anthropicRequest, cancellationToken);
-    if (streamResult.Stream is null)
-    {
-        return ToError(streamResult.StatusCode, streamResult.Error);
-    }
-
-    httpContext.Response.StatusCode = StatusCodes.Status200OK;
-    httpContext.Response.ContentType = "application/x-ndjson";
-
-    await using var anthropicStream = streamResult.Stream;
-    await responseMapper.WriteStreamAsync(model, anthropicStream, httpContext.Response.Body, cancellationToken);
     return Results.Empty;
 }

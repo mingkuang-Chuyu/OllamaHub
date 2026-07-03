@@ -171,7 +171,7 @@ public sealed class LoggingConfig
             "error" => LogLevel.Error,
             "warning" => LogLevel.Warning,
             "info" => LogLevel.Information,
-            _ => LogLevel.None
+            _ => LogLevel.Information, // 默认应该用 Information 等级，这样才能在首次启动无任何配置的情况下，看到控制台日志输出内容
         };
     }
 }

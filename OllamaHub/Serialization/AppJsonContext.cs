@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using OllamaHub.Configuration;
 using OllamaHub.Contracts;
@@ -25,6 +26,7 @@ namespace OllamaHub.Serialization;
 [JsonSerializable(typeof(OpenAIChatCompletionChunk))]
 [JsonSerializable(typeof(OllamaErrorResponse))]
 [JsonSerializable(typeof(JsonElement))]
+[JsonSerializable(typeof(JsonObject))]
 public partial class AppJsonContext : JsonSerializerContext
 {
 }

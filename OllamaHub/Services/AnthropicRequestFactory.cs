@@ -9,6 +9,8 @@ public interface IAnthropicRequestFactory
 {
     AnthropicMessagesRequest Create(ResolvedModelConfig model, OllamaChatRequest request);
 
+    AnthropicMessagesRequest Create(ResolvedModelConfig model, JsonObject request);
+
     AnthropicMessagesRequest Create(ResolvedModelConfig model, OpenAIChatCompletionsRequest request);
 }
 
@@ -51,6 +53,12 @@ public sealed class AnthropicRequestFactory : IAnthropicRequestFactory
 
     public AnthropicMessagesRequest Create(ResolvedModelConfig model, OpenAIChatCompletionsRequest request)
     {
+        var requestJson = JsonSerializer.SerializeToNode(request)?.AsObject() ?? new JsonObject();
+        return Create(model, requestJson);
+    }
+
+    public AnthropicMessagesRequest Create(ResolvedModelConfig model, JsonObject request)
+    {
         var systemMessages = new List<string>();
         var extra = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
         foreach (var pair in model.Extra)
@@ -58,32 +66,28 @@ public sealed class AnthropicRequestFactory : IAnthropicRequestFactory
             extra[pair.Key] = pair.Value;
         }
 
-        foreach (var pair in request.Extra)
+        foreach (var pair in request)
         {
             if (SupportedAnthropicExtraFields.Contains(pair.Key))
             {
-                extra[pair.Key] = ConvertToExtensionValue(pair.Value);
+                extra[pair.Key] = pair.Value?.DeepClone();
             }
         }
 
-        var messages = request.Messages.SelectMany(message => ConvertOpenAiMessage(message, systemMessages)).ToList();
+        var messages = (request["messages"] as JsonArray)?.SelectMany(message => ConvertOpenAiMessage(message, systemMessages)).ToList()
+            ?? [];
 
         return new AnthropicMessagesRequest
         {
             Model = model.AnthropicModel,
             System = systemMessages.Count > 0 ? string.Join(Environment.NewLine + Environment.NewLine, systemMessages) : null,
             Messages = messages,
-            Stream = request.Stream,
-            Temperature = request.Temperature ?? model.Temperature,
-            TopP = request.TopP ?? model.TopP,
-            MaxTokens = request.MaxTokens ?? model.MaxTokens,
-            Tools = request.Tools?.Select(tool => new AnthropicToolDefinition
-            {
-                Name = tool.Function.Name,
-                Description = tool.Function.Description,
-                InputSchema = tool.Function.Parameters
-            }).ToArray(),
-            ToolChoice = MapToolChoice(request.ToolChoice),
+            Stream = TryGetBoolean(request, "stream") ?? false,
+            Temperature = TryGetDouble(request, "temperature") ?? model.Temperature,
+            TopP = TryGetDouble(request, "top_p") ?? model.TopP,
+            MaxTokens = TryGetInt32(request, "max_tokens") ?? model.MaxTokens,
+            Tools = ExtractTools(request["tools"]),
+            ToolChoice = MapToolChoice(request["tool_choice"]?.DeepClone()),
             Extra = extra
         };
     }
@@ -108,10 +112,10 @@ public sealed class AnthropicRequestFactory : IAnthropicRequestFactory
 
         if (toolChoice is JsonObject obj)
         {
-            var type = obj["type"]?.GetValue<string>();
+            var type = TryGetString(obj["type"]);
             if (string.Equals(type, "function", StringComparison.OrdinalIgnoreCase))
             {
-                var functionName = obj["function"]?["name"]?.GetValue<string>();
+                var functionName = TryGetString(obj["function"]?["name"]);
                 if (!string.IsNullOrWhiteSpace(functionName))
                 {
                     return new JsonObject
@@ -131,17 +135,6 @@ public sealed class AnthropicRequestFactory : IAnthropicRequestFactory
         }
 
         return null;
-    }
-
-    private static object? ConvertToExtensionValue(object? value)
-    {
-        return value switch
-        {
-            null => null,
-            JsonElement element => JsonNode.Parse(element.GetRawText()),
-            JsonNode node => node,
-            _ => JsonSerializer.SerializeToNode(value)
-        };
     }
 
     private static IEnumerable<AnthropicMessage> ConvertOllamaMessage(OllamaChatMessage message, List<string> systemMessages)
@@ -180,11 +173,19 @@ public sealed class AnthropicRequestFactory : IAnthropicRequestFactory
         return [CreateStandardMessage(message.Role, ExtractOllamaContentBlocks(message.Content), message.ToolCalls?.Select(ToAnthropicToolUse).ToArray())];
     }
 
-    private static IEnumerable<AnthropicMessage> ConvertOpenAiMessage(OpenAIChatMessage message, List<string> systemMessages)
+    private static IEnumerable<AnthropicMessage> ConvertOpenAiMessage(JsonNode? messageNode, List<string> systemMessages)
     {
-        if (string.Equals(message.Role, "system", StringComparison.OrdinalIgnoreCase))
+        if (messageNode is not JsonObject message)
         {
-            var text = ExtractText(message.Content);
+            return [];
+        }
+
+        var role = TryGetString(message["role"]);
+        var content = message["content"]?.DeepClone();
+
+        if (string.Equals(role, "system", StringComparison.OrdinalIgnoreCase))
+        {
+            var text = ExtractText(content);
             if (!string.IsNullOrWhiteSpace(text))
             {
                 systemMessages.Add(text);
@@ -193,7 +194,7 @@ public sealed class AnthropicRequestFactory : IAnthropicRequestFactory
             return [];
         }
 
-        if (string.Equals(message.Role, "tool", StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(role, "tool", StringComparison.OrdinalIgnoreCase))
         {
             return
             [
@@ -205,8 +206,8 @@ public sealed class AnthropicRequestFactory : IAnthropicRequestFactory
                         new AnthropicContentBlock
                         {
                             Type = "tool_result",
-                            ToolUseId = message.ToolCallId ?? message.Name ?? "tool-call",
-                            Content = ExtractText(message.Content) ?? string.Empty,
+                            ToolUseId = TryGetString(message["tool_call_id"]) ?? TryGetString(message["name"]) ?? "tool-call",
+                            Content = ExtractText(content) ?? string.Empty,
                             IsError = false
                         }
                     ]
@@ -214,15 +215,9 @@ public sealed class AnthropicRequestFactory : IAnthropicRequestFactory
             ];
         }
 
-        var toolCalls = message.ToolCalls?.Select(toolCall => new AnthropicContentBlock
-        {
-            Type = "tool_use",
-            Id = toolCall.Id,
-            Name = toolCall.Function.Name,
-            Input = ParseArguments(toolCall.Function.Arguments)
-        }).ToArray();
+        var toolCalls = ExtractToolCalls(message["tool_calls"]);
 
-        return [CreateStandardMessage(message.Role, ExtractContentBlocks(message.Content), toolCalls)];
+        return [CreateStandardMessage(role ?? "user", ExtractContentBlocks(content), toolCalls)];
     }
 
     private static AnthropicMessage CreateStandardMessage(string role, IReadOnlyList<AnthropicContentBlock>? contentBlocks, IReadOnlyList<AnthropicContentBlock>? toolCalls)
@@ -346,6 +341,108 @@ public sealed class AnthropicRequestFactory : IAnthropicRequestFactory
         return [];
     }
 
+    private static AnthropicToolDefinition[]? ExtractTools(JsonNode? toolsNode)
+    {
+        if (toolsNode is not JsonArray toolsArray)
+        {
+            return null;
+        }
+
+        var tools = toolsArray
+            .Select(ConvertToolDefinition)
+            .OfType<AnthropicToolDefinition>()
+            .ToArray();
+
+        return tools.Length == 0 ? null : tools;
+    }
+
+    private static AnthropicToolDefinition? ConvertToolDefinition(JsonNode? toolNode)
+    {
+        if (toolNode is not JsonObject toolObject || toolObject["function"] is not JsonObject functionObject)
+        {
+            return null;
+        }
+
+        var name = TryGetString(functionObject["name"]);
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return null;
+        }
+
+        return new AnthropicToolDefinition
+        {
+            Name = name,
+            Description = TryGetString(functionObject["description"]),
+            InputSchema = functionObject["parameters"]?.DeepClone()
+        };
+    }
+
+    private static AnthropicContentBlock[]? ExtractToolCalls(JsonNode? toolCallsNode)
+    {
+        if (toolCallsNode is not JsonArray toolCallsArray)
+        {
+            return null;
+        }
+
+        var toolCalls = toolCallsArray
+            .Select(ConvertToolCall)
+            .OfType<AnthropicContentBlock>()
+            .ToArray();
+
+        return toolCalls.Length == 0 ? null : toolCalls;
+    }
+
+    private static AnthropicContentBlock? ConvertToolCall(JsonNode? toolCallNode)
+    {
+        if (toolCallNode is not JsonObject toolCallObject || toolCallObject["function"] is not JsonObject functionObject)
+        {
+            return null;
+        }
+
+        var id = TryGetString(toolCallObject["id"]);
+        var name = TryGetString(functionObject["name"]);
+        if (string.IsNullOrWhiteSpace(id) || string.IsNullOrWhiteSpace(name))
+        {
+            return null;
+        }
+
+        return new AnthropicContentBlock
+        {
+            Type = "tool_use",
+            Id = id,
+            Name = name,
+            Input = ParseArguments(TryGetString(functionObject["arguments"]) ?? "{}")
+        };
+    }
+
+    private static bool? TryGetBoolean(JsonObject jsonObject, string propertyName)
+    {
+        return jsonObject[propertyName] is JsonValue value && value.TryGetValue<bool>(out var result)
+            ? result
+            : null;
+    }
+
+    private static double? TryGetDouble(JsonObject jsonObject, string propertyName)
+    {
+        return jsonObject[propertyName] is JsonValue value && value.TryGetValue<double>(out var result)
+            ? result
+            : null;
+    }
+
+    private static int? TryGetInt32(JsonObject jsonObject, string propertyName)
+    {
+        return jsonObject[propertyName] is JsonValue value && value.TryGetValue<int>(out var result)
+            ? result
+            : null;
+    }
+
+    private static string? TryGetString(JsonNode? node)
+    {
+        return node is JsonValue value && value.TryGetValue<string>(out var result)
+            ? result
+            : null;
+    }
+
     private static IEnumerable<AnthropicContentBlock> ConvertContentPart(JsonNode? node)
     {
         if (node is not JsonObject obj)
@@ -358,10 +455,10 @@ public sealed class AnthropicRequestFactory : IAnthropicRequestFactory
             return [];
         }
 
-        var type = obj["type"]?.GetValue<string>();
+        var type = TryGetString(obj["type"]);
         if (string.Equals(type, "text", StringComparison.OrdinalIgnoreCase))
         {
-            var text = obj["text"]?.GetValue<string>();
+            var text = TryGetString(obj["text"]);
             return string.IsNullOrWhiteSpace(text)
                 ? []
                 : [new AnthropicContentBlock { Type = "text", Text = text }];
@@ -369,7 +466,7 @@ public sealed class AnthropicRequestFactory : IAnthropicRequestFactory
 
         if (string.Equals(type, "image_url", StringComparison.OrdinalIgnoreCase) && obj["image_url"] is JsonObject imageUrl)
         {
-            var url = imageUrl["url"]?.GetValue<string>();
+            var url = TryGetString(imageUrl["url"]);
             if (string.IsNullOrWhiteSpace(url))
             {
                 return [];

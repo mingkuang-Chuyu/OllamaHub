@@ -222,6 +222,92 @@ public sealed class AnthropicRequestFactoryTests
     }
 
     [Fact]
+    public void Create_OpenAiJson_MapsMessagesToolsAndExtra()
+    {
+        var factory = new AnthropicRequestFactory();
+        var model = new ResolvedModelConfig
+        {
+            ModelId = "claude-sonnet-4-5",
+            OllamaModelName = "claude-sonnet-4-5",
+            DisplayName = "Claude Sonnet",
+            ProviderId = "anthropic",
+            ApiModes = ["anthropic"],
+            BaseUrl = "https://api.anthropic.com",
+            ApiKey = "secret",
+            AnthropicModel = "claude-sonnet-4-5",
+            MaxTokens = 4096,
+            Extra = new Dictionary<string, JsonNode?>
+            {
+                ["service_tier"] = "standard_only"
+            }
+        };
+
+        var request = JsonNode.Parse("""
+        {
+          "model": "claude-sonnet-4-5",
+          "stream": true,
+          "temperature": 0.4,
+          "top_p": 0.8,
+          "max_tokens": 2048,
+          "tool_choice": "auto",
+          "tools": [
+            {
+              "type": "function",
+              "function": {
+                "name": "read_file",
+                "description": "Read a file",
+                "parameters": { "type": "object" }
+              }
+            }
+          ],
+          "messages": [
+            { "role": "system", "content": "you are helpful" },
+            { "role": "user", "content": "hello" },
+            {
+              "role": "assistant",
+              "content": "calling tool",
+              "tool_calls": [
+                {
+                  "id": "call_1",
+                  "function": {
+                    "name": "read_file",
+                    "arguments": "{\"path\":\"README.md\"}"
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "tool_call_id": "call_1",
+              "name": "read_file",
+              "content": "# README"
+            }
+          ],
+          "metadata": {
+            "source": "test"
+          }
+        }
+        """)!.AsObject();
+
+        var result = factory.Create(model, request);
+
+        Assert.Equal("you are helpful", result.System);
+        Assert.True(result.Stream);
+        Assert.Equal(0.4, result.Temperature);
+        Assert.Equal(0.8, result.TopP);
+        Assert.Equal(2048, result.MaxTokens);
+        Assert.Equal("auto", result.ToolChoice?["type"]?.GetValue<string>());
+        Assert.Single(result.Tools!);
+        Assert.Equal("read_file", result.Tools[0].Name);
+        Assert.Equal("Read a file", result.Tools[0].Description);
+        Assert.Equal("standard_only", Assert.IsAssignableFrom<JsonNode>(result.Extra["service_tier"])?.GetValue<string>());
+        Assert.Equal("test", Assert.IsAssignableFrom<JsonNode>(result.Extra["metadata"])?["source"]?.GetValue<string>());
+        Assert.Equal(3, result.Messages.Count);
+        Assert.Equal("tool_use", result.Messages[1].Content[1].Type);
+        Assert.Equal("tool_result", result.Messages[2].Content[0].Type);
+    }
+
+    [Fact]
     public void Create_OpenAiRequest_MapsRequiredToolChoiceToAnthropicAny()
     {
         var factory = new AnthropicRequestFactory();

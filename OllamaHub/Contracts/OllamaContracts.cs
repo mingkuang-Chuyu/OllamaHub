@@ -1,4 +1,4 @@
-using System.Text.Json.Nodes;
+﻿using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 
 namespace OllamaHub.Contracts;
@@ -25,6 +25,30 @@ public sealed class OllamaModelDescriptor
 
     [JsonPropertyName("digest")]
     public required string Digest { get; init; }
+
+    [JsonPropertyName("capabilities")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public IReadOnlyList<string>? Capabilities { get; init; }
+
+    [JsonPropertyName("context_length")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? ContextLength { get; init; }
+
+    [JsonPropertyName("max_context_length")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? MaxContextLength { get; init; }
+
+    [JsonPropertyName("max_input_tokens")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? MaxInputTokens { get; init; }
+
+    [JsonPropertyName("max_output_tokens")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? MaxOutputTokens { get; init; }
+
+    [JsonPropertyName("model_info")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public IReadOnlyDictionary<string, object>? ModelInfo { get; init; }
 
     [JsonPropertyName("details")]
     public required OllamaModelDetails Details { get; init; }
@@ -76,6 +100,22 @@ public sealed class OllamaShowResponse
 
     [JsonPropertyName("capabilities")]
     public IReadOnlyList<string> Capabilities { get; init; } = [];
+
+    [JsonPropertyName("context_length")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? ContextLength { get; init; }
+
+    [JsonPropertyName("max_context_length")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? MaxContextLength { get; init; }
+
+    [JsonPropertyName("max_input_tokens")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? MaxInputTokens { get; init; }
+
+    [JsonPropertyName("max_output_tokens")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? MaxOutputTokens { get; init; }
 
     [JsonPropertyName("model_info")]
     public required IReadOnlyDictionary<string, object> ModelInfo { get; init; }

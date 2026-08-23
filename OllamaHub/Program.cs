@@ -97,25 +97,19 @@ app.MapPost("/api/show", (IOllamaHubConfigProvider configProvider, OllamaShowReq
         });
     }
 
-    var capabilities = model.Vision
-        ? new[] { "completion", "tools", "vision" }
-        : new[] { "completion", "tools" };
+    var capabilities = BuildCapabilities(model);
 
     return Results.Ok(new OllamaShowResponse
     {
-        Modelfile = $"FROM {model.AnthropicModel}",
-        Parameters = $"family={model.Family}\ncontext_length={model.ContextLength}\nmax_tokens={model.MaxTokens}",
+        Modelfile = $"# OllamaHub proxy\nFROM {model.AnthropicModel}\nPARAMETER num_ctx {model.ContextLength}",
+        Parameters = $"num_ctx {model.ContextLength}\nfamily={model.Family}\ncontext_length={model.ContextLength}\nmax_tokens={model.MaxTokens}",
         Details = ToDescriptor(model).Details,
         Capabilities = capabilities,
-        ModelInfo = new Dictionary<string, object>
-        {
-            ["provider"] = model.ProviderId,
-            ["anthropic_model"] = model.AnthropicModel,
-            ["context_length"] = model.ContextLength,
-            ["max_tokens"] = model.MaxTokens,
-            ["capabilities"] = capabilities,
-            ["vision"] = model.Vision,
-        }
+        ContextLength = model.ContextLength,
+        MaxContextLength = model.ContextLength,
+        MaxInputTokens = model.ContextLength,
+        MaxOutputTokens = model.MaxTokens,
+        ModelInfo = BuildModelInfo(model)
     });
 });
 
@@ -161,14 +155,44 @@ static OllamaModelDescriptor ToDescriptor(ResolvedModelConfig model) =>
         ModifiedAt = DateTimeOffset.UtcNow.ToString("O"),
         Size = 0,
         Digest = OllamaHubConfigLoader.BuildDigest(model),
+        Capabilities = BuildCapabilities(model),
+        ContextLength = model.ContextLength,
+        MaxContextLength = model.ContextLength,
+        MaxInputTokens = model.ContextLength,
+        MaxOutputTokens = model.MaxTokens,
+        ModelInfo = BuildModelInfo(model),
         Details = new OllamaModelDetails
         {
-            Family = "",
-            Families = [""],
+            Family = model.Family,
+            Families = [model.Family],
             ParameterSize = "",
             QuantizationLevel = "proxy"
         }
     };
+
+static string[] BuildCapabilities(ResolvedModelConfig model) =>
+    model.Vision
+        ? ["completion", "tools", "vision"]
+        : ["completion", "tools"];
+
+static IReadOnlyDictionary<string, object> BuildModelInfo(ResolvedModelConfig model)
+{
+    var outputTokens = Math.Min(model.MaxTokens, Math.Max(model.ContextLength - 1, 0));
+    return new Dictionary<string, object>
+    {
+        ["provider"] = model.ProviderId,
+        ["anthropic_model"] = model.AnthropicModel,
+        ["general.architecture"] = model.Family,
+        ["general.context_length"] = model.ContextLength,
+        [model.Family + ".context_length"] = model.ContextLength,
+        ["context_length"] = model.ContextLength,
+        ["max_tokens"] = model.MaxTokens,
+        ["capabilities"] = BuildCapabilities(model),
+        ["vision"] = model.Vision,
+        ["num_ctx"] = model.ContextLength,
+        ["max_output_tokens"] = outputTokens
+    };
+}
 
 static IResult ToError(HttpStatusCode statusCode, string? error)
 {

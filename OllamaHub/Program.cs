@@ -11,6 +11,7 @@ using OllamaHub.Services;
 var configPath = Path.Combine(AppContext.BaseDirectory, OllamaHubConfigLoader.DefaultConfigFileName);
 if (TryHandleCommand(args, configPath))
 {
+    Environment.Exit(0);
     return;
 }
 

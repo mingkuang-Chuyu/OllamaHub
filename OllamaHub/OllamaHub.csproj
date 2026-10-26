@@ -7,4 +7,7 @@
     <OutputType Condition="$([MSBuild]::IsOSPlatform('Windows'))">WinExe</OutputType>
   </PropertyGroup>
 
+  <ItemGroup Condition="'$(Configuration)' == 'Debug'">
+    <Content Remove="settings.json" />
+  </ItemGroup>
 </Project>

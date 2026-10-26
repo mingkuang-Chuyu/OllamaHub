@@ -1,0 +1,149 @@
+﻿{
+  "host": "127.0.0.1",
+  "port": 11434,
+  "logging": {
+    "level": "None"
+  },
+  "providers": [
+    {
+      "id": "智脑",
+      "baseUrl": "https://api.360.cn/"
+    },
+    {
+      "id": "智汇云",
+      "baseUrl": "https://llm.api.zyuncs.com/"
+    },
+
+    {
+      "id": "DeepSeek",
+      "baseUrl": "https://api.deepseek.com/"
+    }
+  ],
+  "models": [
+    {
+      "id": "openai/gpt-5.5",
+      "owned_by": "智汇云",
+      "displayName": "智汇云/GPT-5.5",
+      "family": "gpt5",
+      "apiMode": "openai",
+      "context_length": 1050000,
+      "max_tokens": 128000,
+      "temperature": 0,
+      "top_p": 1,
+      "extra": {
+        "thinking": { "type": "enabled" },
+        "reasoning_effort": "medium"
+      }
+    },
+    {
+      "id": "qiniu/openai/gpt-5.4",
+      "owned_by": "智脑",
+      "displayName": "智脑/gpt-5.4",
+      "family": "gpt5",
+      "apiMode": "openai",
+      "context_length": 1000000,
+      "max_tokens": 128000,
+      "temperature": 0,
+      "top_p": 1,
+      "extra": {
+        "thinking": { "type": "enabled" },
+        "reasoning_effort": "medium"
+      }
+    },
+    {
+      "id": "openai/gpt-5.3-codex",
+      "owned_by": "智汇云",
+      "displayName": "智汇云/GPT-5.3-Codex",
+      "family": "gpt5",
+      "apiMode": "openai",
+      "context_length": 400000,
+      "max_tokens": 128000,
+      "temperature": 0,
+      "top_p": 1,
+      "extra": {
+        "thinking": { "type": "enabled" },
+        "reasoning_effort": "medium"
+      }
+    },
+    {
+      "id": "openai/gpt-5.2-codex",
+      "owned_by": "智脑",
+      "displayName": "智脑/gpt-5.2-codex",
+      "family": "gpt5",
+      "apiMode": "openai",
+      "context_length": 128000,
+      "max_tokens": 128000,
+      "temperature": 0,
+      "top_p": 1,
+      "extra": {
+        "thinking": { "type": "enabled" },
+        "reasoning_effort": "medium"
+      }
+    },
+    {
+      "id": "anthropic/claude-opus-4.7",
+      "owned_by": "智脑",
+      "displayName": "智脑/Claude Opus 4.7",
+      "family": "claude",
+      "apiMode": "openai",
+      "context_length": 1000000,
+      "max_tokens": 128000,
+      "temperature": 0,
+      "top_p": 1
+    },
+    {
+      "id": "anthropic/claude-sonnet-4-6",
+      "owned_by": "智脑",
+      "displayName": "智脑/Claude Sonnet 4.6",
+      "family": "claude",
+      "apiMode": "openai",
+      "context_length": 1000000,
+      "max_tokens": 128000,
+      "temperature": 0,
+      "top_p": 1,
+      "extra": {
+        "service_tier": "standard_only"
+      }
+    },
+    {
+      "id": "anthropic/claude-sonnet-4-5",
+      "owned_by": "智脑",
+      "displayName": "Claude Sonnet 4.5",
+      "family": "claude",
+      "apiMode": "openai",
+      "context_length": 1000000,
+      "max_tokens": 8192,
+      "temperature": 0,
+      "top_p": 1,
+      "extra": {
+        "service_tier": "standard_only"
+      }
+    },
+    {
+      "id": "st/deepseek/deepseek-v4-pro",
+      "owned_by": "智脑",
+      "displayName": "deepseek/deepseek-v4-pro",
+      "family": "deepseek",
+      "apiMode": "openai",
+      "context_length": 1000000,
+      "max_tokens": 384000,
+      "temperature": 0,
+      "top_p": 1,
+      "extra": {
+        "thinking": { "type": "enabled" },
+        "reasoning_effort": "max"
+      }
+    },
+    {
+      "id": "z-ai/glm-5.1",
+      "owned_by": "智脑",
+      "displayName": "z-ai/glm-5.1",
+      "family": "glm",
+      "apiMode": "openai",
+      "context_length": 200000,
+      "max_tokens": 128000,
+      "temperature": 0,
+      "top_p": 1
+    }
+  ]
+}
